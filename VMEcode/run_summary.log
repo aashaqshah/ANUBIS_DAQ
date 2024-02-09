@@ -1,0 +1,97 @@
+Initializing (re-initializing)...
+Performing Module FE (single shot) reset.
+Writing register at address EE020018; data=0000; ret=0
+Performing TDC reset.
+Writing register at address EE020054; data=0000; ret=0
+Checking status 1
+Reading register at address EE02000E; data=0073; ret=0
+OK: initial check complete.
+Checking Status 2
+Reading register at address EE020048; data=0FE4; ret=0
+Check for next stage in progress.
+handshake read call 0 - reading reg. address: 0x0050
+Reading register at address EE020050; data=0002; ret=0
+OP Code ready for writting.
+Reading register at address EE02000E; data=3073; ret=0
+OK: TDCs are currently OK.
+Loading default configuration - one step op.
+handshake write call 0 - reg. address: 0x0052, command: 0x1500
+Reading register at address EE020050; data=0002; ret=0
+OP code ready to be written.
+Writing register at address EE020052; data=1500; ret=0
+Reading register at address EE02000E; data=0073; ret=0
+OK: TDCs are currently OK.
+Setting 'stop trigger matching' mode - one step op.
+handshake read call 1 - reading reg. address: 0x0050
+Reading register at address EE020050; data=0002; ret=0
+OP Code ready for writting.
+handshake write call 1 - reg. address: 0x0052, command: 0x1000
+Reading register at address EE020050; data=0002; ret=0
+OP code ready to be written.
+Writing register at address EE020052; data=1000; ret=0
+Reading register at address EE02000E; data=0073; ret=0
+OK: TDCs are currently OK.
+Setting window width - two steps op.
+handshake read call 2 - reading reg. address: 0x0050
+Reading register at address EE020050; data=0002; ret=0
+OP Code ready for writting.
+handshake write call 2 - reg. address: 0x0052, command: 0x3000
+Reading register at address EE020050; data=0002; ret=0
+OP code ready to be written.
+Writing register at address EE020052; data=3000; ret=0
+handshake read call 3 - reading reg. address: 0x0050
+Reading register at address EE020050; data=0002; ret=0
+OP Code ready for writting.
+Writing register at address EE020052; data=0014; ret=0
+Reading register at address EE02000E; data=0073; ret=0
+OK: TDCs are currently OK.
+Setting window offset - two steps op.
+handshake read call 4 - reading reg. address: 0x0050
+Reading register at address EE020050; data=0002; ret=0
+OP Code ready for writting.
+handshake write call 3 - reg. address: 0x0052, command: 0x3200
+Reading register at address EE020050; data=0002; ret=0
+OP code ready to be written.
+Writing register at address EE020052; data=3200; ret=0
+handshake read call 5 - reading reg. address: 0x0050
+Reading register at address EE020050; data=0002; ret=0
+OP Code ready for writting.
+Writing register at address EE020052; data=FFF6; ret=0
+Reading register at address EE02000E; data=0073; ret=0
+OK: TDCs are currently OK.
+Setting data ready mode.
+handshake read call 6 - reading reg. address: 0x0050
+Reading register at address EE020050; data=0002; ret=0
+OP Code ready for writting.
+handshake write call 4 - reg. address: 0x0052, command: 0x7000
+Reading register at address EE020050; data=0002; ret=0
+OP code ready to be written.
+Writing register at address EE020052; data=7000; ret=0
+Reading register at address EE02000E; data=0073; ret=0
+OK: TDCs are currently OK.
+Enabling all channels - one step op.
+handshake read call 7 - reading reg. address: 0x0050
+Reading register at address EE020050; data=0002; ret=0
+OP Code ready for writting.
+handshake write call 5 - reg. address: 0x0052, command: 0x2300
+Reading register at address EE020050; data=0002; ret=0
+OP code ready to be written.
+Writing register at address EE020052; data=2300; ret=0
+Reading register at address EE02000E; data=2073; ret=0
+OK: TDCs are currently OK.
+Disabling channel 0 - one step op.
+handshake read call 8 - reading reg. address: 0x0050
+Reading register at address EE020050; data=0002; ret=0
+OP Code ready for writting.
+handshake write call 6 - reg. address: 0x0052, command: 0x2100
+Reading register at address EE020050; data=0002; ret=0
+OP code ready to be written.
+Writing register at address EE020052; data=2100; ret=0
+Reading register at address EE02000E; data=2073; ret=0
+OK: TDCs are currently OK.
+Reading register at address EE02000E; data=2073; ret=0
+OK: TDCs are currently OK.
+Clearing TDCs before data run.
+Writing register at address EE020054; data=0000; ret=0
+Reading register at address EE02004A; data=FFE0; ret=0
+START: Beging data taking from TDC 0 ...
