@@ -95,139 +95,63 @@ ushort read_reg(ushort reg_addr);
 /*******************************************************************************/
 void HexToBin(uint32_t hexNumber) 
 { 
+   ulong EOBmask =    0x200000;
+   ulong headerMask = 0x400000;
 
-const char *hexDigitToBinary[16] = {"0000", "0001", "0010", "0011", "0100", "0101",
-                                    "0110", "0111", "1000", "1001", "1010", "1011",
-                                    "1100", "1101", "1110", "1111"};
+   bool isHeader = hexNumber&headerMask;
+   bool isEOB = hexNumber&EOBmask;
+   bool isDatum = !isHeader&!isEOB;
 
-const char hexDigits[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8',
-      '9', 'A', 'B', 'C', 'D', 'E', 'F'};
-
-//char *hexDigitToBinary[16] = {"0000", "0001", "0010", "0011", "0100", "0101",
-//                                    "0110", "0111", "1000", "1001", "1010", "1011",
-//                                    "1100", "1101", "1110", "1111"};
-
-
-
-//char hexDigits[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8',
-//      '9', 'A', 'B', 'C', 'D', 'E', 'F'};
-
-    char hexadecimal[33] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-    char binaryNumber[33]= {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};   
-    int i = 0, j;  
-    sprintf(hexadecimal, "%08X", hexNumber);
-
-
-    /* 
-     * Find he hexadecimal digit in hexDigits and the substitute it
-     * with corresponding value in hexDigitToBinary
-     */ 
-    for(i=0; hexadecimal[i] != '\0'; i++)  {  
-        for(j = 0; j < 16; j++){
-            if(hexadecimal[i] == hexDigits[j]){
-                strcat(binaryNumber, hexDigitToBinary[j]);
-
-            }
-        }
-    }  
-
-
-    		//printf("Info: Buffer: %08X; Byte Stream: %s;\n", hexNumber, binaryNumber); 
-    		if (binaryNumber[9] == '1' && binaryNumber[10] == '1')
-			{
-			if (valid_data_log){
-    				printf("Reading Buffer: %08X; Byte Stream: %s; Not a valid DATUM \n", hexNumber, binaryNumber);  
-					}
-			}
-    		//if (binaryNumber[9] == '1' && binaryNumber[10] == '0')
-    		else if (binaryNumber[9] == '1' && binaryNumber[10] == '0')
-			{
-
-			char subbuff[13];
-			int sum=0;
-			memcpy(subbuff, &binaryNumber[20], 12 );
-			subbuff[12] = '\0';
-			for(int s = strlen(subbuff); s > 0; s-- )
-			    {
-            			if(subbuff[s-1] == '1')
-           			 {
-          	  		  sum = sum + pow(2, 12-s);
-            			}
-    			    }
-			int EvtN = sum;
-    			printf("Reading Buffer: %08X; Byte Stream: %s; Header with Event No.: %d;\n", hexNumber, binaryNumber, EvtN); 
-		        header_counter++;	
-			if (store_data){
-                		fprintf(datafile, "TDC: %d; Event No.: %d\n",tdc, EvtN);
-				}
-			}
-    		//if (binaryNumber[9] == '0' && binaryNumber[10] == '0')
-    		else if (binaryNumber[9] == '0' && binaryNumber[10] == '0')
-			{
-			if (binaryNumber[0] == '0' && binaryNumber[11] == '1'){
-
-			double time_sum = 0.0;
-			int ch_sum=0;
-                        char timebuff[21], chbuff[8];
-                        memcpy(timebuff, &binaryNumber[12], 20 );
-                        memcpy(chbuff, &binaryNumber[1], 7 );
-                        timebuff[20] = '\0';
-                        chbuff[7] = '\0';
-			//time info
-                        for(int t = strlen(timebuff); t > 0; t-- )
-                            {   
-                                if(timebuff[t-1] == '1')
-                                 {
-                                  time_sum = time_sum + pow(2, 20-t)*0.8;
-                                }
-                            }
-                        double timeMeasure = time_sum;
-
-			//Channel info
-                        for(int ch = strlen(chbuff); ch > 0; ch-- )
-                            {
-                                if(chbuff[ch-1] == '1')
-                                //if(chbuff[ch] == '1')
-                                 {
-                                  ch_sum = ch_sum + pow(2, 7-ch);
-                                }
-                            }
-                        int chN = ch_sum;
-    			printf("Reading Buffer: %08X; Byte Stream: %s; Channel No.: %d; Time Measurement: %.2f ns;\n", hexNumber, binaryNumber,128*tdc+chN, timeMeasure); 
-			ch_data_counter++;
-			if (store_data){
-                		fprintf(datafile, "TDC: %d; ChN: %d; TMeasure: %.2f\n", tdc, 128*tdc+chN, timeMeasure );
-					}
-
-			}
-			
-			}
-    		else if ((binaryNumber[9] == '0' && binaryNumber[10] == '1') || (binaryNumber[0] == '1' && binaryNumber[1] == '1' && binaryNumber[2] == '1'  && binaryNumber[3] == '1'  && binaryNumber[4] == '1'   && binaryNumber[9] == '0' && binaryNumber[10] == '1'))
-			{
-			EOB_counter++;
-			if (header_counter != EOB_counter) {	
-					// printf("Byte Stream structure for 'unwanted EOB: %s\n", binaryNumber); 
-    					//printf("Removing last additional (EOB) from counting \n"); 
-					EOB_counter--;
-					additional_EOBs_counter++;
-				}
-			else
-    				printf("Reading Buffer: %08X; Byte Stream: %s; End of Block (EOB) \n", hexNumber, binaryNumber); 
-				
-					//Terminate run here if Headers != EOB's, it is temp. as of now
-					//if ((header_counter != ch_data_counter) && (Continuous == false)   ) {
-					if ((header_counter != EOB_counter) && (Continuous == false)   ) {
-					if (header_counter > EOB_counter) header_counter--;
-					if (header_counter < EOB_counter) EOB_counter--;	
-					printf("Error: Garbage data - empty event or more than one hits per event detected, terminating run...\n\n");
-					exit(1);
-					}
-			}
-		else
-			{
-    			printf("Output Buffer: %08X, Byte Stream is : %s; Unknown data format\n", hexNumber, binaryNumber);  
-			}
-    //return binaryNumber;  
+   if (isHeader&isEOB)
+   {
+	if (valid_data_log){
+		printf("Reading Buffer: %08X; Not a valid DATUM \n", hexNumber);  
+	}
+   }
+   else if (isHeader)
+   {
+      int EvtN = hexNumber&0xfff;
+      printf("Reading Buffer: %08X; Header with Event No.: %d;\n", hexNumber, EvtN); 
+      header_counter++;	
+      if (store_data){
+      	fprintf(datafile, "TDC: %d; Event No.: %d\n",tdc, EvtN);
+      }
+   }
+   else if (isDatum)
+   {
+      uint32_t timeMeasure = hexNumber&0xfffff;
+      uint32_t chN = (hexNumber>>24)&0x7f;
+      printf("Reading Buffer: %08X; Channel No.: %d; Time Measurement: %.2f ns;\n", hexNumber, 128*tdc+chN, timeMeasure); 
+      ch_data_counter++;
+      if (store_data){
+      	fprintf(datafile, "TDC: %d; ChN: %d; TMeasure: %.2f\n", tdc, 128*tdc+chN, timeMeasure );
+      }
+   }
+   else if (isEOB)
+   {
+      EOB_counter++;
+      if (header_counter != EOB_counter) {	
+      		//printf("Removing last additional (EOB) from counting \n"); 
+      		EOB_counter--;
+      		additional_EOBs_counter++;
+      }
+      else{
+      	printf("Reading Buffer: %08X; End of Block (EOB) \n", hexNumber); 
+      	
+      		//Terminate run here if Headers != EOB's, it is temp. as of now
+      		//if ((header_counter != ch_data_counter) && (Continuous == false)   ) {
+      		if ((header_counter != EOB_counter) && (Continuous == false)   ) {
+      		if (header_counter > EOB_counter) header_counter--;
+      		if (header_counter < EOB_counter) EOB_counter--;	
+      		printf("Error: Garbage data - empty event or more than one hits per event detected, terminating run...\n\n");
+      		exit(1);
+      		}
+      }
+   }
+   else   
+   {
+      printf("Output Buffer: %08X, Unknown data format\n", hexNumber);  
+   }
 };
 /*******************************************************************************/
 /*                               READ_REG                                      */
