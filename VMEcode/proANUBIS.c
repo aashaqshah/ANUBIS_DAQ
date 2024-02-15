@@ -119,7 +119,7 @@ void HexToBin(uint32_t hexNumber)
    }
    else if (isDatum)
    {
-      uint32_t timeMeasure = hexNumber&0xfffff;
+      double timeMeasure = hexNumber&0xfffff;
       uint32_t chN = (hexNumber>>24)&0x7f;
       printf("Reading Buffer: %08X; Channel No.: %d; Time Measurement: %.2f ns;\n", hexNumber, 128*tdc+chN, timeMeasure); 
       ch_data_counter++;
@@ -349,8 +349,8 @@ ushort read_status1(ushort reg_addr)
        times++;
     //if (read_data == 0x01) break;
     if (read_data == 0x02) {
-    	    fprintf(logfile, "OP Code ready for writting.\n");
-    	    printf("OP Code ready for writting.\n");
+    	    fprintf(logfile, "OP Code ready for writing.\n");
+    	    printf("OP Code ready for writing.\n");
     	    break;
     	    }
     }
@@ -409,18 +409,12 @@ ushort read_status1(ushort reg_addr)
 
 int main(int argc,char *argv[])
 {
-	short device=0;
-	//short usb_link=0; 
-	void* usb_link = 0;
 	const void*  ethernet_link = "10.11.31.10";
 
 	CVErrorCodes	usb_init;
 	CVErrorCodes	eth_init;
 	
-	//usb_init = CAENVME_Init(cvV1718, usb_link, device, &BHandle); //CAENVME_Init, works for old libraries
 	std::cout << "Usb init.\n";
-
-	//usb_init = CAENVME_Init2(cvV1718, usb_link, device, &BHandle);
 	uint32_t link = 0;
 	usb_init = CAENVME_Init2(cvV1718, &link,0, &BHandle);
 
@@ -491,17 +485,12 @@ int main(int argc,char *argv[])
 
         	// Load default config
         	write_opc(0x52, 0x1500);
-		sleep(1);
        
 		// Module FE reset
 	       	fprintf(logfile, "Performing Module FE (single shot) reset.\n");	
         	write_reg(0x0018, 0);
-        	sleep(2); //only 2 seconds needed.
+        	sleep(1); //only 2 seconds needed.
 
-		//Check status
-		//read_status1(0x0E);
-		//sleep(0.01);
-		
 		//TDC reset
 	       	fprintf(logfile, "Performing TDC reset.\n");	
         	write_reg(0x0054, 0);
@@ -509,12 +498,9 @@ int main(int argc,char *argv[])
 
 	       	fprintf(logfile, "Checking status 1\n");	
         	//read_status1(0x000E);//Check TDC status 1
-        	sleep(0.2);
         	
 	       	fprintf(logfile, "Checking Status 2\n");	
 		status2_recovery(0x0048); //Check TDC status 2
-        	sleep(0.2);
-
 
         	// Print success message
         	printf("Initialization complete.\n");
@@ -537,18 +523,9 @@ int main(int argc,char *argv[])
       	/*load default config */
       	fprintf(logfile, "Loading default configuration - one step op.\n");
       	printf("Loading default configuration - one op.\n");
-      	//read_opc(0x50);
-      	//sleep(op_reg_time_rest);
-      	write_opc(0x52, 0x1500);
+      	write_opc(0x52, 0x1500); 
       	sleep(op_reg_time_rest);	
 	tdc_status(0x000E);
-	//	/* disenable ch. 0 only */
-	//	fprintf(logfile, "Disabling channel 0 - one step op.\n");
-	//	printf("Diabling channel 0 - one step op.\n");
-	//	read_opc(0x50);
-	//	sleep(op_reg_time_rest);
-	//	write_opc(0x52, 0x21);
-	//	sleep(op_reg_time_rest);
 
 	if (Continuous) {
 		printf("Running in 'Continuous' mode!!\n");
@@ -573,7 +550,6 @@ int main(int argc,char *argv[])
 
 	} else {
 		
-	        
 		/* set Stop Trigger Matching mode */
 	        printf("Setting 'stop trigger matching' mode - one step op.\n");	
 	        fprintf(logfile, "Setting 'stop trigger matching' mode - one step op.\n");	
@@ -583,23 +559,17 @@ int main(int argc,char *argv[])
 		sleep(op_reg_time_rest);
 		tdc_status(0x000E);
 	
-			
 		////read acq. mode
 	        //fprintf(logfile, "Sending write op. 0x1400 instruction to OP code register.\n");	
 	        //printf("Sending write op. 0x1400 instruction to OP code register.\n");	
 		//read_opc(0x50);
-		//sleep(op_reg_time_rest);
 		//write_opc(0x52, 0x1400);
-		//sleep(op_reg_time_rest);
 		
 	        //fprintf(logfile, "Reading acquisation mode status.\n");	
 	        //printf("Reading acquisation mode status.\n");	
 		//read_opc(0x50);
-		//sleep(op_reg_time_rest);
 		//read_opc(0x1400);
-		//sleep(op_reg_time_rest);
 
-		
 		//short win_offs, win_width;
 		short win_offs, win_width;
 		win_offs = -20;
@@ -618,11 +588,6 @@ int main(int argc,char *argv[])
 		sleep(op_reg_time_rest);
 		tdc_status(0x000E);
 		
-	//	/* read window width */
-	//        fprintf(logfile, "Reading window width.\n");	
-	//	read_opc(0x3100);
-	//	sleep(1);
-	
 		/* set window offset */
 	        fprintf(logfile, "Setting window offset - two steps op.\n");	
 	        printf("Setting window offset - two steps op.\n");	
@@ -645,7 +610,6 @@ int main(int argc,char *argv[])
 		//sleep(op_reg_time_rest);
 		//read_opc(0x3300);
 		//sleep(op_reg_time_rest);
-
 
 		/* set Trigger latency*/
 		//write_opc(0x52, 0x3400);
@@ -696,32 +660,21 @@ int main(int argc,char *argv[])
 	struct timeval t1, t2;
         double elapsedTime = 0;
 
-	//double timpe_compansate = 2000.0; //This time (ms) after TDC reset is called
-
 	while(tdc < nTDC) {
-	
+        printf("Reading from TDC %08X.\n",base_addr[tdc]);
 	//check TDC current status
 	tdc_status(0x000E);
-	 
-	
-	/*tdc clear*/
-	printf("Clearing TDCs before data run.\n");
-	fprintf(logfile, "Clearing TDCs before data run.\n");
-	write_reg(0x0054, 0);
-	sleep(1);
-	
-	//read_reg(0x004E); //Additionally clear the counter if needed
-	
-	//Check current status again 
-	//tdc_status(0x000E);
-	sleep(1);
-
 	if (!status_one) {
 		 printf("No Data Ready: terminating run.\n");
 		 fprintf(logfile, "No Data Ready: terminating run.\n");
 		 exit(1);
 	 }
 
+	/*tdc clear*/
+	printf("Clearing TDCs before data run.\n");
+	fprintf(logfile, "Clearing TDCs before data run.\n");
+	write_reg(0x0054, 0);
+	sleep(1);
 	
 	//Check if buffer has an event
 	if (Continuous == false) read_control2(0x004A);
@@ -733,42 +686,29 @@ int main(int argc,char *argv[])
 	//}
 
 	
-	printf("START: Beging data taking from TDC %d ...\n", tdc);
-	fprintf(logfile, "START: Beging data taking from TDC %d ...\n", tdc);
+	printf("START: Beginning data taking from TDC %d ...\n", tdc);
+	fprintf(logfile, "START: Beginning data taking from TDC %d ...\n", tdc);
 	//time initilisation
 	gettimeofday(&t1, NULL);
 	do {
 	//read_control2(0x004A);
 	ret_blck = CAENVME_MBLTReadCycle(handle, base_addr[tdc], (uchar *)buffer, MAX_BLT_SIZE, cvA32_U_MBLT, &byte_cnt[tdc]);
 	gettimeofday(&t2, NULL);
-	//status2_recovery(0x0048); //status 2
 	// compute elapsed time in millisec
         elapsedTime = (t2.tv_sec - t1.tv_sec)* mult_fact;     // Convert seconds to milliseconds or whatever value of mult_fact is 
         elapsedTime += (t2.tv_usec - t1.tv_usec)/mult_fact;   //Similarly, convert microseconds to milliseconds
-	//printf("elapsed time:  %f\n", elapsedTime);	
-	//sleep(0.01);
 	if (ret_blck){
 		if (ENABLE_LOG && (byte_cnt[tdc]>0)) {
-		//if (byte_cnt[tdc]>0) {
-				  //if (ENABLE_LOG) fprintf(logfile, " TDC: %d, Read Data Block from output buffer: size = %d bytes\n", tdc, byte_cnt[tdc]);
 					for(int b=0; b<(byte_cnt[tdc]/4); b++){
-					//if (ENABLE_LOG) fprintf(logfile, "TDC: %d; Reading output buffer: %08X\n", tdc, buffer[b]);
-						//printf("EOB before, Byte stream %x:\n", buffer[b]);
 						
 						/*Some check here to see if the data makes sense before processing further*/
 									
-						//if ((buffer[b] & tdc_err_mask) ){
 						if (((buffer[b] & tdc_err_mask) && (buffer[b] == EOB_mask)) != 0 ){
 							HexToBin(buffer[b]);
 							printf("Error: Garbage data - EOB Byte stream %x, terminating run.\n", buffer[b]);
 							//exit(1);
 						}
 						
-					//	if ((buffer[b] & TWO_BITS_MASK) == TWO_BITS_MASK){
-					//	   	;
-					//		//printf("Byte stream %x, not a Valid data.\n", buffer[b]);	
-					//	}
-
 						//check first event
 						if ((buffer[0] == First_evnt_Header) && (buffer[1] == EOB_mask)){
 							//printf("Error: First event with problem in EOB stream, terminating run.\n");
@@ -776,11 +716,6 @@ int main(int argc,char *argv[])
 							exit(1);
 						}
 
-						//if ((buffer[b] == EOB_mask) && (b == 1)){
-						//	HexToBin(buffer[b]);
-						//	printf("Error: empty event, terminating run.\n");
-						//	exit(1);
-						//}
 						if ((buffer[b] == EOB_word) && (buffer[b]==buffer[b-1]) ) {
 							//printf("Info: Two back-to-back EOBs detected, ignoring last one\n");
 							extra_EOBs_counter++;
@@ -794,8 +729,6 @@ int main(int argc,char *argv[])
 		}
 	}
 	while (elapsedTime < acq_time); 
-	//while ((elapsedTime + timpe_compansate) < acq_time); 
-
 	tdc++;
 	} //end of tdc loop
 	
