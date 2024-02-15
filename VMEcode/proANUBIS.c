@@ -38,14 +38,14 @@
 int nTDC = 1;
 
 //V767 TDC's Base addresses
-ulong base_addr[1] = {0xEE020000};
+ulong base_addr[1] = {0xEE010000};
 bool  Continuous = false; 	//default is trigger which is set to true
-bool ethernet_bridge = true;
-bool usb_bridge = false;
+bool ethernet_bridge = false;
+bool usb_bridge = true;
 bool test = true;
 
 //acquisation time in seconds
-const int set_run_acq_time = 5; //time is in seconds
+const int set_run_acq_time = 60; //time is in seconds
 
 //Expected channel
 int channel_no = 0;
@@ -61,7 +61,7 @@ const llong int mult_fact = 1000; //factor to converst time from sec. to millise
 long int acq_time = set_run_acq_time * mult_fact; // converts time to sec.
 int op_handshake;
 int op_reg;
-int op_reg_time_rest = 1; 
+int op_reg_time_rest = 0; 
 
 //Event related
 int header_counter = 0;
@@ -240,7 +240,7 @@ ushort read_reg(ushort reg_addr)
 	if(ret != cvSuccess) {
 		sprintf(ErrorString, "Cannot read at address %08X\n", (uint32_t)(base_addr[tdc] + reg_addr));
 		VMEerror = 1;
-    }
+        }
 	if (ENABLE_LOG){
 		fprintf(logfile, "Reading register at address %08X; data=%04X; ret=%d\n", (uint32_t)(base_addr[tdc] + reg_addr), data, (int)ret);
 		;
@@ -369,11 +369,11 @@ ushort read_status1(ushort reg_addr)
 		      printf("SUCCESS: TDC recovered successfully\n");
 		      fprintf(logfile, "SUCCESS: TDC recovered successfully\n");
 	      }
-	      if ((read_data & empty_buffer_mask) != 0) {
+	      /*if ((read_data & empty_buffer_mask) != 0) {
 		      printf("Empty buffer\n");
 		      fprintf(logfile, "Empty buffer\n");
 		      exit(1);
-	      }
+	      }*/
 	      times++;
 	      //check if it did not recover
 	      if (( (read_data & tdc_error_mask) && (times <16)) != 0){
@@ -485,18 +485,22 @@ ushort read_status1(ushort reg_addr)
 
 int main(int argc,char *argv[])
 {
-
 	short device=0;
 	//short usb_link=0; 
-	 void* usb_link = 0;
+	void* usb_link = 0;
 	const void*  ethernet_link = "10.11.31.10";
 
 	CVErrorCodes	usb_init;
 	CVErrorCodes	eth_init;
 	
 	//usb_init = CAENVME_Init(cvV1718, usb_link, device, &BHandle); //CAENVME_Init, works for old libraries
-	usb_init = CAENVME_Init2(cvV1718, usb_link, device, &BHandle);
-	eth_init = CAENVME_Init2(cvETH_V4718, const_cast<void*>(ethernet_link), 0, &BHandle);
+	std::cout << "Usb init.\n";
+
+	//usb_init = CAENVME_Init2(cvV1718, usb_link, device, &BHandle);
+	uint32_t link = 0;
+	usb_init = CAENVME_Init2(cvV1718, &link,0, &BHandle);
+
+	//eth_init = CAENVME_Init2(cvETH_V4718, const_cast<void*>(ethernet_link), 0, &BHandle);
 	
 	printf("START: attempting to open controller!\n");
 
@@ -562,8 +566,8 @@ int main(int argc,char *argv[])
         	fprintf(logfile, "Initializing (re-initializing)...\n");
 
         	// Load default config
-        	//write_opc(0x52, 0x1500);
-		//sleep(1);
+        	write_opc(0x52, 0x1500);
+		sleep(1);
        
 		// Module FE reset
 	       	fprintf(logfile, "Performing Module FE (single shot) reset.\n");	
@@ -580,7 +584,7 @@ int main(int argc,char *argv[])
         	sleep(1);
 
 	       	fprintf(logfile, "Checking status 1\n");	
-        	read_status1(0x000E);//Check TDC status 1
+        	//read_status1(0x000E);//Check TDC status 1
         	sleep(0.2);
         	
 	       	fprintf(logfile, "Checking Status 2\n");	
@@ -591,9 +595,10 @@ int main(int argc,char *argv[])
         	// Print success message
         	printf("Initialization complete.\n");
 
-    	} catch (const std::runtime_error& e) {
+    	} catch (...) {
+                //std::exception_ptr ex = std::current_exception();
         	// Print error message and handle the exception
-        	std::cerr << "Error: " << e.what() << std::endl;
+        	std::cerr << "Error in resetting.\n";
         	// Optionally exit the program if there's a critical error
          	exit(EXIT_FAILURE);
    	 }
@@ -673,8 +678,8 @@ int main(int argc,char *argv[])
 		
 		//short win_offs, win_width;
 		short win_offs, win_width;
-		win_offs = -10;
-		win_width = 20;
+		win_offs = -20;
+		win_width = 40;
 	
 		/* set window width */
 	        fprintf(logfile, "Setting window width - two steps op.\n");	
@@ -788,8 +793,8 @@ int main(int argc,char *argv[])
 	sleep(1);
 
 	if (!status_one) {
-		 printf("TDC Error: terminating run.\n");
-		 fprintf(logfile, "TDC Error: terminating run.\n");
+		 printf("No Data Ready: terminating run.\n");
+		 fprintf(logfile, "No Data Ready: terminating run.\n");
 		 exit(1);
 	 }
 

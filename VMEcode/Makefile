@@ -6,7 +6,8 @@ EXE	=	proANUBIS
 CC	=	g++
 
 #COPTS	=	-fPIC -DLINUX -Wall -std=c99 
-COPTS   =       -fPIC -DLINUX -Wall -std=c++17
+COPTS   =       -fPIC -DLINUX -Wall -std=c++11
+
 
 FLAGS	=	-Wall -s
 
