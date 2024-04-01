@@ -2,16 +2,13 @@
 
 EXE	=	proANUBIS
 
-#CC	=	gcc
 CC	=	g++
 
-#COPTS	=	-fPIC -DLINUX -Wall -std=c99 
-COPTS   =       -fPIC -DLINUX -Wall -std=c++11
+COPTS   =       -fPIC -DLINUX -Wall -std=c++11 `root-config --cflags`
 
+FLAGS	=	-Wall -s `root-config --cflags`
 
-FLAGS	=	-Wall -s
-
-DEPLIBS	=       -l CAENVME -lc -lm
+DEPLIBS	=       -l CAENVME -lc -lm `root-config --glibs`
 
 INCLUDEDIR =	-I.
 #INCLUDEDIR =	-I../include #if we want to include files locally, and this is an old code

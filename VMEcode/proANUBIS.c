@@ -9,6 +9,9 @@
 #include "CAENVMElib.h"
 #include "CAENVMEtypes.h"
 #include "CAENVMEoslib.h"
+#include "TFile.h"
+#include "TTree.h"
+#include "TTimeStamp.h"
 #define ulong  unsigned long
 #define ushort unsigned short
 #define uchar  unsigned char
@@ -17,8 +20,12 @@
 #include <stdbool.h>
 #include <time.h>
 #include <iostream>
+#include <iomanip>
 #include <thread>
 #include <chrono>
+#include <ctime>
+#include <sstream>
+#include <filesystem>
 using std::this_thread::sleep_for;
 
 #define ENABLE_LOG  1
@@ -33,9 +40,8 @@ using namespace TDCconstants;
 
 //TDC V767 Base addresses
 ulong base_addr[5] = {0xEE000000, 0xEE010000, 0xEE020000, 0xEE030000, 0xEE040000};
-//ulong base_addr[4] = {0xEE010000, 0xEE020000, 0xEE030000, 0xEE040000};
 
-std::vector<std::vector<int>> badChannels = {{0,32,95,127},{0,64,96},{32,64},{0,31,32,127},{0}};
+//std::vector<std::vector<int>> badChannels = {{0,32,95,127},{64,96},{32,64},{0,31,32,127},{0}};
 
 //ulong base_addr[3] = {0xEE040000, 0xEE030000, 0xEE020000};
 //ulong base_addr[1] = {0xEE000000};
@@ -176,7 +182,7 @@ int read_opcode()
 /*******************************************************************************/
 bool interpret_tdcError(ushort chip)
 {  
-   write_opcode(0x8000+chip);
+   write_opcode(0x8000+(chip>>2));
    ushort errStat = read_opcode();
    return errStat;
 }
@@ -250,7 +256,7 @@ int main(int argc,char *argv[])
 		return 1;
 	}
 
-    
+    //CAENVME_SystemReset(BHandle); 
 
 	// Read FW revision
     //ushort manufact_id = read_reg(0x102E);
@@ -281,25 +287,29 @@ int main(int argc,char *argv[])
 	short win_width=50;  
     for(int i=0;i<nTDCs;i++){
         printf("Setting up TDC %i.\n",tdc);
-        bool tdcError = read_tdcError();
+        bool tdcError;
 	    do {
             write_reg(vme_reset,0x0011);
             sleep(2);   
             write_opcode(0x1500); //Load default config
+            write_opcode(0xB800); // Set mask for evnt overflow
+            write_opcode(0xB);
             write_opcode(0x2400);//Disable all channels
 		    if (atol(argv[1])==0){
+                printf("Setting Continuous mode.\n");
 		    	write_opcode(0x1300);//sets Continuous mode
 		    }
 		    else{
 		    	write_opcode(0x1000);//sets StopTriggerMatching mode
-		    }
-		    write_opcode(0x3000);//sets window width
-		    write_opcode(win_width);
+		        write_opcode(0x3000);//sets window width
+		        write_opcode(win_width);
 //            write_opcode(0x2300);//enable all channels
-		    write_opcode(0x3200);//sets window offset
-		    write_opcode(win_offs);
+		        write_opcode(0x3200);//sets window offset
+		        write_opcode(win_offs);
+            }
 		    write_opcode(0x7200);//sets Data_Ready_Mode=Buffer not empty
-            for(uint16_t chan=0; chan<128; chan++) //Manually re-enable the 'good' channels
+            write_opcode(0x2300);//Enable all channels
+/*            for(uint16_t chan=0; chan<128; chan++) //Manually re-enable the 'good' channels
             {
                 bool good=true;
                 for(uint16_t badChan=0; badChan<badChannels[tdc].size(); badChan++)
@@ -307,56 +317,119 @@ int main(int argc,char *argv[])
                     if(badChannels[tdc][badChan]==chan){good=false;}
                 }
                 if(good){write_opcode(0x2000+chan);}
-            }
+            }*/
 
             sleep(1);
             tdcError = read_tdcError();
         }while(tdcError);
         tdc++;
     }
-    tdc=0;
-    for(int board=0; board<nTDCs; board++)
-    {
-	    write_reg(tdc_clear, 0x0011);
-        tdc++;
-    }
-    tdc=0;
+    /*tdc=0;
     for(int board=0; board<nTDCs; board++)
     {
 	    bool boolErrCheck = read_tdcError();
         if(boolErrCheck){printf("TDC %i is in Error!.\n",tdc);}
         else{printf("TDC %i is OK.\n",tdc);}
         tdc++;
-    }
-    tdc=0;
+    }*/
 
     //wait for input
     //int var;
     //printf("Waiting for input.\n");
     //std::cin >> var;
-	time_t endwait;
-	time_t start = time(NULL);
-	time_t seconds = atol(argv[2]); //end loop after this elapsed time
-	endwait = start+seconds;
-
-	do{
-       ushort rstatus;
-	   bool dataReady;
-       do{
-           rstatus = read_reg(stat_reg_1);
-       }
-       while(!(rstatus&0x01)&(time(NULL)<endwait));
-       do{
-           if(time(NULL)<endwait){
-              HexToBin(read_reg(out_buffer, 32));
-              dataReady = read_reg(stat_reg_1)&0x01;
+    //
+    while(true){
+        tdc=0;
+        for(int board=0; board<nTDCs; board++)
+        {
+    	    write_reg(tdc_clear, 0x0011);
+            tdc++;
+        }
+        tdc=0;
+    
+    	time_t endwait;
+    	time_t start = time(NULL);
+    	time_t seconds = atol(argv[2]); //end loop after this elapsed time
+    	endwait = start+seconds;
+        enum states {Waiting, Ready, Invalid};
+        states state=Waiting;
+        
+        std::vector<uint32_t> dataBuffer;
+        std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        std::ostringstream oss;
+        oss << std::put_time(std::localtime(&now), "%y%m%d_%H%M");
+        std::ostringstream date;
+        date << std::put_time(std::localtime(&now), "%y_%m_%d");
+        std::string ofName = "data/"+date.str()+"proAnubis_"+oss.str()+".root";
+        std::filesystem::create_directory("data/"+date.str());
+        TFile* thisFile = new TFile(ofName.c_str(),"RECREATE");
+        TTree* thisTree = new TTree;
+        uint16_t thisTdc;
+        TTimeStamp thisTime;
+        thisTree->Branch("TDC",&thisTdc);
+        thisTree->Branch("TimeStamp",&thisTime);
+        thisTree->Branch("Words",&dataBuffer);
+      
+    	do{
+           ushort rstatus;
+    	   bool dataReady;
+               
+           do{
+               rstatus = read_reg(stat_reg_1);
            }
-	   }
-	   while(dataReady&(time(NULL)<endwait));
-       tdc++;
-       if(tdc>=nTDCs){tdc=0;}
-	}
-    while(time(NULL)<endwait);
+           while(!(rstatus&0x01)&(time(NULL)<endwait));
+           do{
+               if(state==Invalid){
+                  thisTree->Write();
+                  thisFile->Close();
+	              CAENVME_End(handle);
+                  return 1;
+               }
+               if(time(NULL)<endwait){
+                  uint32_t thisWord = read_reg(out_buffer, 32);
+                  //HexToBin(thisWord);
+                  ulong EOBMask = 0x200000;
+                  ulong headerMask = 0x400000;
+              
+              	  if ( (thisWord&headerMask) & (thisWord&EOBMask)){state=Invalid;}
+                  else if(thisWord&headerMask){
+                      if(state==Waiting){
+                         state=Ready;
+                      }
+                      else{
+                         state=Invalid;
+                      }
+                  }
+                  else if(thisWord&EOBMask){
+                      if(state==Ready){
+                          thisTdc = tdc;
+                          auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
+                          auto seconds = std::chrono::duration_cast<std::chrono::seconds>(nanoseconds);
+                          nanoseconds-=seconds;
+                          thisTime.SetSec(seconds.count());
+                          thisTime.SetNanoSec(nanoseconds.count());
+                          thisTree->Fill();
+                          dataBuffer.clear();
+                          state=Waiting;
+                      }
+                      else{state=Invalid;}   
+                  }
+                  else{
+                      if(state==Ready){dataBuffer.push_back(thisWord);}
+                      else{state=Invalid;}
+                  }
+    
+                  dataReady = read_reg(stat_reg_1)&0x01;
+               }
+    	   }
+    	   while(dataReady&(time(NULL)<endwait));
+           tdc++;
+           if(tdc>=nTDCs){tdc=0;}
+    	}
+        while(time(NULL)<endwait);
+        thisTree->Write();
+        thisFile->Close();
+    }
 	time_t endTime = time(NULL);
 	printf("End time is %s", ctime(&endTime));
     tdc = 0;
