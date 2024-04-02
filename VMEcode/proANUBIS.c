@@ -362,11 +362,13 @@ int main(int argc,char *argv[])
         uint16_t thisTdc = 7;
         TTimeStamp thisTime;
         uint32_t thisEvtNum = 0;
-
+        TString timeString;
         //Make a TTree for the continous monitoring
         TTree* contTree = new TTree;
+        contTree->SetName("Events");
         contTree->Branch("TDC",&thisTdc);
         contTree->Branch("TimeStamp",&thisTime);
+        contTree->Branch("TimeString",&timeString);
         contTree->Branch("Words",&dataBuffer);
         contTree->Branch("EventNumber",&thisEvtNum);
        
@@ -376,8 +378,10 @@ int main(int argc,char *argv[])
 
         //Make an identical TTree for the full data storage
         TTree* thisTree = new TTree;
+        thisTree->SetName("Events");
         thisTree->Branch("TDC",&thisTdc);
         thisTree->Branch("TimeStamp",&thisTime);
+        thisTree->Branch("TimeString",&timeString);
         thisTree->Branch("Words",&dataBuffer);
         thisTree->Branch("EventNumber",&thisEvtNum);
 
@@ -395,7 +399,9 @@ int main(int argc,char *argv[])
            }    
            if(time(NULL)>shortwait)
            {
+              thisTime = getTime();
               TFile* contFile = new TFile("data/monitor/proANUBISmonitor.root","RECREATE");
+              contFile->WriteObject(&thisTime, "endTime");
               contTree->Write();
               contFile->Close();
               shortwait = shortwait+shortwaittime;
@@ -434,6 +440,7 @@ int main(int argc,char *argv[])
                       if(state==Ready){
                           thisTdc = tdc;
                           thisTime=getTime();
+                          timeString = (TString)thisTime.AsString();
                           thisTree->Fill();
                           contTree->Fill();
                           dataBuffer.clear();
