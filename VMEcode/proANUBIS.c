@@ -20,6 +20,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <thread>
 #include <chrono>
@@ -56,6 +57,18 @@ int VMEerror = 0;
 char ErrorString[100];
 FILE *logfile;
 FILE *datafile;
+
+
+//Hacky way to stop the program after "deamonizing" it. Reads a cfg file which should only contain a zero or one, stops if it doesn't see a one.
+bool checkRunFlag()
+{
+    std::ifstream flagFile;
+    flagFile.open("cfg/runFlag.txt");
+    int state = 0; 
+    flagFile >> state;
+    if(state==1){return true;}
+    return false;
+}
 
 /*******************************************************************************/
 /*            Helper: Hex to Binary  and data read                             */
@@ -187,6 +200,18 @@ bool interpret_tdcError(ushort chip)
    return errStat;
 }
 
+//Get the current time
+TTimeStamp getTime()
+{
+    auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
+    auto seconds = std::chrono::duration_cast<std::chrono::seconds>(nanoseconds);
+    nanoseconds-=seconds;
+    TTimeStamp currentTime;
+    currentTime.SetSec(seconds.count());
+    currentTime.SetNanoSec(nanoseconds.count());
+    return currentTime;
+}
+
 /*******************************************************************************/
 /*                                READ_TDCError                                */
 /*******************************************************************************/
@@ -232,7 +257,6 @@ int main(int argc,char *argv[])
 {
 	printf("Triggered: %s | Duration: %s", argv[1], argv[2]);
 
- 	//ushort manufact_id;
 	printf("Log file = %d\n", ENABLE_LOG);
 	if (ENABLE_LOG) {
 		printf("Log file is enabled\n");
@@ -244,9 +268,7 @@ int main(int argc,char *argv[])
 		datafile = fopen("V767_data","w");
     }
 
-    //const void* ethernet_link = "10.11.31.10";
     uint32_t usb_link = 0;
-    //if(CAENVME_Init(cvV1718, 0, 0, &BHandle) == cvSuccess)
     if(CAENVME_Init2(cvV1718, &usb_link, 0, &BHandle)==cvSuccess)
     {
         printf("Connected to the device.\n");
@@ -256,13 +278,9 @@ int main(int argc,char *argv[])
 		return 1;
 	}
 
-    //CAENVME_SystemReset(BHandle); 
-
 	// Read FW revision
-    //ushort manufact_id = read_reg(0x102E);
     if (VMEerror) {
 	printf(ErrorString);
-		//getchar();
 	CAENVME_End(handle);
         return 1;
     }
@@ -276,13 +294,11 @@ int main(int argc,char *argv[])
 
     printf("Manufacturer's ID = %02X,%02X,%02X\n", manId_0,manId_1,manId_2);
     printf("Board ID = %02X,%02X,%02X,%02X\n", boardId_0,boardId_1,boardId_2,boardId_3);
-    //read_tdcError();
 
 	// ------------------------------------------------------------------------------------
 	// Acquisition loop
 	// ------------------------------------------------------------------------------------
 	printf("Starting Acquisition from V767 modules\n");
-	//write_reg(soft_trig, 0x0011); //TDC reset
 	short win_offs=-10;
 	short win_width=50;  
     for(int i=0;i<nTDCs;i++){
@@ -303,41 +319,18 @@ int main(int argc,char *argv[])
 		    	write_opcode(0x1000);//sets StopTriggerMatching mode
 		        write_opcode(0x3000);//sets window width
 		        write_opcode(win_width);
-//            write_opcode(0x2300);//enable all channels
 		        write_opcode(0x3200);//sets window offset
 		        write_opcode(win_offs);
             }
 		    write_opcode(0x7200);//sets Data_Ready_Mode=Buffer not empty
             write_opcode(0x2300);//Enable all channels
-/*            for(uint16_t chan=0; chan<128; chan++) //Manually re-enable the 'good' channels
-            {
-                bool good=true;
-                for(uint16_t badChan=0; badChan<badChannels[tdc].size(); badChan++)
-                {
-                    if(badChannels[tdc][badChan]==chan){good=false;}
-                }
-                if(good){write_opcode(0x2000+chan);}
-            }*/
 
             sleep(1);
             tdcError = read_tdcError();
         }while(tdcError);
         tdc++;
     }
-    /*tdc=0;
-    for(int board=0; board<nTDCs; board++)
-    {
-	    bool boolErrCheck = read_tdcError();
-        if(boolErrCheck){printf("TDC %i is in Error!.\n",tdc);}
-        else{printf("TDC %i is OK.\n",tdc);}
-        tdc++;
-    }*/
-
-    //wait for input
-    //int var;
-    //printf("Waiting for input.\n");
-    //std::cin >> var;
-    //
+    
     while(true){
         tdc=0;
         for(int board=0; board<nTDCs; board++)
@@ -346,10 +339,14 @@ int main(int argc,char *argv[])
             tdc++;
         }
         tdc=0;
-    
+        //Save the chrono start time
+        TTimeStamp startTime = getTime();
+      
     	time_t endwait;
     	time_t start = time(NULL);
     	time_t seconds = atol(argv[2]); //end loop after this elapsed time
+        time_t shortwaittime = 1800;
+        time_t shortwait = start+shortwaittime;
     	endwait = start+seconds;
         enum states {Waiting, Ready, Invalid};
         states state=Waiting;
@@ -360,34 +357,66 @@ int main(int argc,char *argv[])
         oss << std::put_time(std::localtime(&now), "%y%m%d_%H%M");
         std::ostringstream date;
         date << std::put_time(std::localtime(&now), "%y_%m_%d");
-        std::string ofName = "data/"+date.str()+"proAnubis_"+oss.str()+".root";
+        std::string ofName = "data/"+date.str()+"/proAnubis_"+oss.str()+".root";
         std::filesystem::create_directory("data/"+date.str());
-        TFile* thisFile = new TFile(ofName.c_str(),"RECREATE");
-        TTree* thisTree = new TTree;
-        uint16_t thisTdc;
+        uint16_t thisTdc = 7;
         TTimeStamp thisTime;
+        uint32_t thisEvtNum = 0;
+
+        //Make a TTree for the continous monitoring
+        TTree* contTree = new TTree;
+        contTree->Branch("TDC",&thisTdc);
+        contTree->Branch("TimeStamp",&thisTime);
+        contTree->Branch("Words",&dataBuffer);
+        contTree->Branch("EventNumber",&thisEvtNum);
+       
+        TFile* thisFile = new TFile(ofName.c_str(),"RECREATE");
+        //Write the start time into the TFile
+        thisFile->WriteObject(&startTime, "startTime");
+
+        //Make an identical TTree for the full data storage
+        TTree* thisTree = new TTree;
         thisTree->Branch("TDC",&thisTdc);
         thisTree->Branch("TimeStamp",&thisTime);
         thisTree->Branch("Words",&dataBuffer);
-      
+        thisTree->Branch("EventNumber",&thisEvtNum);
+
+        const char* thisDir = gDirectory->GetPath(); 
     	do{
            ushort rstatus;
     	   bool dataReady;
-               
+           if(!checkRunFlag()){
+               thisTime = getTime();
+               thisTree->Write();
+               thisFile->WriteObject(&thisTime, "endTime");
+               thisFile->Close();
+               CAENVME_End(handle);
+               return 0;
+           }    
+           if(time(NULL)>shortwait)
+           {
+              TFile* contFile = new TFile("data/monitor/proANUBISmonitor.root","RECREATE");
+              contTree->Write();
+              contFile->Close();
+              shortwait = shortwait+shortwaittime;
+              contTree->Reset(); 
+              gDirectory->cd(thisDir);
+           }
            do{
                rstatus = read_reg(stat_reg_1);
            }
            while(!(rstatus&0x01)&(time(NULL)<endwait));
            do{
                if(state==Invalid){
+                  thisTime = getTime();
                   thisTree->Write();
+                  thisFile->WriteObject(&thisTime, "endTime");
                   thisFile->Close();
 	              CAENVME_End(handle);
                   return 1;
                }
                if(time(NULL)<endwait){
                   uint32_t thisWord = read_reg(out_buffer, 32);
-                  //HexToBin(thisWord);
                   ulong EOBMask = 0x200000;
                   ulong headerMask = 0x400000;
               
@@ -395,6 +424,7 @@ int main(int argc,char *argv[])
                   else if(thisWord&headerMask){
                       if(state==Waiting){
                          state=Ready;
+        	             thisEvtNum = thisWord&0xfff;
                       }
                       else{
                          state=Invalid;
@@ -403,12 +433,9 @@ int main(int argc,char *argv[])
                   else if(thisWord&EOBMask){
                       if(state==Ready){
                           thisTdc = tdc;
-                          auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
-                          auto seconds = std::chrono::duration_cast<std::chrono::seconds>(nanoseconds);
-                          nanoseconds-=seconds;
-                          thisTime.SetSec(seconds.count());
-                          thisTime.SetNanoSec(nanoseconds.count());
+                          thisTime=getTime();
                           thisTree->Fill();
+                          contTree->Fill();
                           dataBuffer.clear();
                           state=Waiting;
                       }
@@ -427,19 +454,11 @@ int main(int argc,char *argv[])
            if(tdc>=nTDCs){tdc=0;}
     	}
         while(time(NULL)<endwait);
+        thisTime=getTime();
         thisTree->Write();
+        thisFile->WriteObject(&thisTime, "endTime");
         thisFile->Close();
     }
-	time_t endTime = time(NULL);
-	printf("End time is %s", ctime(&endTime));
-    tdc = 0;
-	for(int chip=0; chip<nTDCs; chip++)
-    {
-        printf("Checking TDC %i status.\n",tdc);
-        read_tdcError();
-        tdc++;
-    }
-
 	CAENVME_End(handle);
     return 0;
 }
