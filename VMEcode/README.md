@@ -20,7 +20,8 @@ First, make sure that runFlag.txt has a one in it:
 Then run the code 
     
     ./proANUBIS 1 #
-where # is the number of seconds before creating a new output file. 
+where # is the number of seconds before creating a new output file, currently using 21600 for 6 hour runs.
+
 To disown the process:
 
     ./proANUBIS 1 21600 &
@@ -28,5 +29,5 @@ To disown the process:
 To stop the disowned process:
     
     echo 0 > cfg/runFlag.txt
-Currently using 21600 for 6 hour runs.
+
 The output ROOT files will be written to the data/ directory in folders and files named after the date and time of their creation, and every 30 minutes the last 30 minutes of data will be written to data/monitor/proANUBISmonitor.root
