@@ -9,9 +9,6 @@
 #include "CAENVMElib.h"
 #include "CAENVMEtypes.h"
 #include "CAENVMEoslib.h"
-#include "TFile.h"
-#include "TTree.h"
-#include "TTimeStamp.h"
 #define ulong  unsigned long
 #define ushort unsigned short
 #define uchar  unsigned char
@@ -210,15 +207,15 @@ bool interpret_tdcError(ushort chip)
 }
 
 //Get the current time
-TTimeStamp getTime()
+std::pair<uint32_t,uint32_t> getTime()
 {
     auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
     auto seconds = std::chrono::duration_cast<std::chrono::seconds>(nanoseconds);
     nanoseconds-=seconds;
-    TTimeStamp currentTime;
-    currentTime.SetSec(seconds.count());
-    currentTime.SetNanoSec(nanoseconds.count());
-    return currentTime;
+    std::pair<uint32_t,uint32_t> outTime;
+    outTime.first = seconds.count();
+    outTime.second = nanoseconds.count();
+    return outTime;
 }
 
 /*******************************************************************************/
@@ -334,8 +331,7 @@ int main(int argc,char *argv[])
         }while(tdcError);
     }
     
-    uint16_t thisTdc = 7;
-    TTimeStamp thisTime;
+    std::pair<uint32_t,uint32_t> thisTime;
     uint32_t thisWord;
     uint32_t buffer[MAX_BLT_SIZE] = {0};
     std::vector<uint32_t> dataBuffer;
@@ -348,7 +344,7 @@ int main(int argc,char *argv[])
         }
         tdc=0;
         //Save the chrono start time
-        TTimeStamp startTime = getTime();
+        thisTime = getTime();
       
     	time_t endwait;
     	time_t start = time(NULL);
@@ -366,41 +362,23 @@ int main(int argc,char *argv[])
         date << std::put_time(std::localtime(&now), "%y_%m");
         std::ostringstream day;
         day << std::put_time(std::localtime(&now), "%y_%m_%d");
-        std::string ofName = "data/"+date.str()+"/"+day.str()+"/proAnubis_"+oss.str()+".root";
+        std::string ofName = "data/"+date.str()+"/"+day.str()+"/proAnubis_"+oss.str()+".raw";
         std::filesystem::create_directory("data/"+date.str());
         std::filesystem::create_directory("data/"+date.str()+"/"+day.str());
  
-        //Make a TTree for the continous monitoring
-        TTree* contTree = new TTree;
-        contTree->SetName("Events");
-        contTree->Branch("TDC",&thisTdc);
-//        contTree->Branch("Quality",&qualFlag);
-        contTree->Branch("TimeStamp",&thisTime);
-        contTree->Branch("Words",&dataBuffer);
-//        contTree->Branch("EventNumber",&thisEvtNum);
-//        contTree->Branch("nHits",&nHits);
-
-        TFile* thisFile = new TFile(ofName.c_str(),"RECREATE");
+        std::ofstream thisFile;
+        thisFile.open(ofName.c_str(), std::ios::binary | std::ios::out);
         //Write the start time into the TFile
-        thisFile->WriteObject(&startTime, "startTime");
+        thisFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
+        thisFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
+        std::ofstream monFile;
+        monFile.open("tempMonFile.raw", std::ios::binary | std::ios::out);
+        monFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
+        monFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
 
-        //Make an identical TTree for the full data storage
-        TTree* thisTree = new TTree;
-        thisTree->SetName("Events");
-        thisTree->Branch("TDC",&thisTdc);
-        thisTree->Branch("TimeStamp",&thisTime);
-        thisTree->Branch("Words",&dataBuffer);
-//        thisTree->Branch("Quality",&qualFlag);
-//        thisTree->Branch("EventNumber",&thisEvtNum);
-//        thisTree->Branch("nHits",&nHits);
-        TTree* clkTree = new TTree;
-        clkTree->SetName("Trig");
-        clkTree->Branch("Words",&dataBuffer);
-        clkTree->Branch("TimeStamp",&thisTime);
         ulong EOBMask = 0x200000;
         ulong headerMask = 0x400000;
 
-        const char* thisDir = gDirectory->GetPath(); 
     	do{
            if(tdc<5)   //Triggered TDC readout, need to reconstruct events
            {
@@ -416,77 +394,17 @@ int main(int argc,char *argv[])
                  //HexToBin(thisWord);
                  dataBuffer.push_back(thisWord);
               }
-                 //All the event-making stuff, temporarily removed
-                 /* 
-                 if(thisWord&headerMask){
-                     if(thisWord&EOBMask){break;} //Invalid data, skip
-                     if(state==Waiting){
-                        state=Ready;
-                        thisEvtNum = thisWord&0xfff;
-                        qualFlag=0;
-                     }
-                     else{
-                        if((thisWord&0xfff)==thisEvtNum+1)
-                        {
-                            thisTdc = tdc;
-                            qualFlag = qualFlag|0x8;
-                            thisTree->Fill();
-                            contTree->Fill();
-                            dataBuffer.clear();
-                        }
-                        else{qualFlag=qualFlag|0x1;}
-                        //state=Invalid;
-                     }
-                 }
-                 else if(thisWord&EOBMask){
-                     if(state==Ready){
-                         thisTdc = tdc;
-                         nHits = thisWord&0xffff;
-                         thisTree->Fill();
-                         contTree->Fill();
-                         dataBuffer.clear();
-                         state=Waiting;
-                     }
-                     else
-                     {
-                         qualFlag=qualFlag|0x2;
-                         //state=Invalid;
-                     }   
-                 }
-                 else{
-                     dataBuffer.push_back(thisWord);
-                     if(state==Waiting)
-                     {
-                         qualFlag=qualFlag|0x4;
-                         state=Ready;
-                         //state=Invalid;
-                     }
-                 }
-              }
-              if(state==Ready){
-                 thisTdc = tdc;
-                 qualFlag = qualFlag|0x8;
-                 thisTree->Fill();
-                 contTree->Fill();
-                 dataBuffer.clear();
-                 //state=Invalid;
-                 state=Waiting;
-              } 
-              if(state==Invalid){
-                  thisTime = getTime();
-                  thisTree->Write();
-                  clkTree->Write();
-                  thisFile->WriteObject(&thisTime, "endTime");
-                  thisFile->Close();
-	              CAENVME_End(handle);
-          	     fprintf(logfile, "Invalid state, read word %04X", thisWord);
-                  return 1;
-              }*/
               if(dataBuffer.size()>0)
               {
-                 thisTdc = tdc;
-                 thisTree->Fill();
-                 contTree->Fill();
+                 thisFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
+                 thisFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
+                 uint32_t headerWord = (tdc<<24) + dataBuffer.size();
+                 thisFile.write((char*)&headerWord,sizeof(uint32_t));
+                 thisFile.write((char*)&dataBuffer[0], dataBuffer.size() * sizeof(uint32_t));
+                 monFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
+                 monFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
+                 monFile.write((char*)&headerWord,sizeof(uint32_t));
+                 monFile.write((char*)&dataBuffer[0], dataBuffer.size() * sizeof(uint32_t));
                  dataBuffer.clear();
               }
            }
@@ -499,9 +417,13 @@ int main(int argc,char *argv[])
                  dataBuffer.push_back(buffer[b]);
               }
               if(wordCount>0){
-                 clkTree->Fill();
+                 thisFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
+                 thisFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
+                 uint32_t headerWord = (tdc<<24) + dataBuffer.size();
+                 thisFile.write((char*)&headerWord,sizeof(uint32_t));
+                 thisFile.write((char*)&dataBuffer[0], dataBuffer.size() * sizeof(uint32_t));
+                 dataBuffer.clear();
               }
-              dataBuffer.clear();
            }
            tdc++;
            if(tdc>=nTDCs)
@@ -509,35 +431,32 @@ int main(int argc,char *argv[])
               tdc=0;
               if(!checkRunFlag()){
                   thisTime = getTime();
-                  thisTree->Write();
-                  clkTree->Write();
-                  thisFile->WriteObject(&thisTime, "endTime");
-                  thisFile->Close();
+                  thisFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
+                  thisFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
+                  thisFile.close();
                   CAENVME_End(handle);
                   return 0;
               }    
               if(time(NULL)>shortwait)
               {
                  thisTime = getTime();
-                 TFile* contFile = new TFile("data/monitor/proANUBISmonitor.root","RECREATE");
-                 contFile->WriteObject(&thisTime, "endTime");
-                 contTree->Write();
-                 contFile->Close();
+                 monFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
+                 monFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
+                 monFile.close();
+                 std::rename("tempMonFile.raw", "data/Monitor/proANUBISmonitor.raw");
+                 monFile.open("tempMonFile.raw", std::ios::binary | std::ios::out);
+                 monFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
+                 monFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
+
                  shortwait = shortwait+shortwaittime;
-                 contTree->Reset(); 
-                 gDirectory->cd(thisDir);
               }
            }
     	}
         while(time(NULL)<endwait);
         thisTime=getTime();
-        thisTree->Write();
-        clkTree->Write();
-        thisTree->Delete();
-        clkTree->Delete();
-        contTree->Delete();
-        thisFile->WriteObject(&thisTime, "endTime");
-        thisFile->Close();
+        thisFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
+        thisFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
+        thisFile.close();
     }
 	CAENVME_End(handle);
     return 0;

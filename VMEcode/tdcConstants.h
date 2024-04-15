@@ -7,6 +7,7 @@ namespace TDCconstants
    ushort fw_rev = 0x104E;
    ushort int_level = 0x000A;
    ushort vme_reset = 0x0018;
+   ushort cont_reg_1 = 0x0010;
    ushort stat_reg_1 = 0x000E;
    ushort stat_reg_2 = 0x0048;
    ushort evt_counter = 0x004C;
@@ -21,4 +22,6 @@ namespace TDCconstants
    ushort board_id_1 = 0x1037; 
    ushort board_id_2 = 0x103B;
    ushort board_id_3 = 0x103E;
+   ushort mcst_addr = 0x0016;
+   ushort mcst_ctrl = 0x0020;
 }
