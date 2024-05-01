@@ -324,7 +324,7 @@ int main(int argc,char *argv[])
 		        write_opcode(0x7200);//sets Data_Ready_Mode=Buffer not empty
                 //write_opcode(0x1600); //Set this as the default mode
                 //write_opcode(0x1800); //Enable auto-load
-                write_reg(cont_reg_1, 0x2B); //Need to enable BERR_VME for block transfers
+                //write_reg(cont_reg_1, 0x2B); //Need to enable BERR_VME for block transfers
             }
             sleep(1);
             tdcError = read_tdcError();
@@ -380,51 +380,32 @@ int main(int argc,char *argv[])
         ulong headerMask = 0x400000;
 
     	do{
-           if(tdc<5)   //Triggered TDC readout, need to reconstruct events
-           {
-              int wordCount = read_blk(buffer);
-              thisTime = getTime();
+           int wordCount = read_blk(buffer);
+           thisTime = getTime();
 
-              for(int b=0; b<wordCount; b++)
-              {
-                 thisWord = buffer[b];
-                 if(thisWord&headerMask){
-                    if(thisWord&EOBMask){break;}
-                 }
-                 //HexToBin(thisWord);
-                 dataBuffer.push_back(thisWord);
-              }
-              if(dataBuffer.size()>0)
-              {
-                 thisFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
-                 thisFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
-                 uint32_t headerWord = (tdc<<24) + dataBuffer.size();
-                 thisFile.write((char*)&headerWord,sizeof(uint32_t));
-                 thisFile.write((char*)&dataBuffer[0], dataBuffer.size() * sizeof(uint32_t));
-                 monFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
-                 monFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
-                 monFile.write((char*)&headerWord,sizeof(uint32_t));
-                 monFile.write((char*)&dataBuffer[0], dataBuffer.size() * sizeof(uint32_t));
-                 dataBuffer.clear();
-              }
-           }
-           else  //Triggerless TDC, can just throw words into the TTree
+           for(int b=0; b<wordCount; b++)
            {
-              int wordCount = read_blk(buffer);
-              thisTime = getTime();
-              for(int b=0; b<wordCount; b++)
-              {
-                 dataBuffer.push_back(buffer[b]);
+              thisWord = buffer[b];
+              if(thisWord&headerMask){
+                 if(thisWord&EOBMask){break;}
               }
-              if(wordCount>0){
-                 thisFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
-                 thisFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
-                 uint32_t headerWord = (tdc<<24) + dataBuffer.size();
-                 thisFile.write((char*)&headerWord,sizeof(uint32_t));
-                 thisFile.write((char*)&dataBuffer[0], dataBuffer.size() * sizeof(uint32_t));
-                 dataBuffer.clear();
-              }
+              //HexToBin(thisWord);
+              dataBuffer.push_back(thisWord);
            }
+           if(dataBuffer.size()>0)
+           {
+              thisFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
+              thisFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
+              uint32_t headerWord = (tdc<<24) + dataBuffer.size();
+              thisFile.write((char*)&headerWord,sizeof(uint32_t));
+              thisFile.write((char*)&dataBuffer[0], dataBuffer.size() * sizeof(uint32_t));
+              monFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
+              monFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
+              monFile.write((char*)&headerWord,sizeof(uint32_t));
+              monFile.write((char*)&dataBuffer[0], dataBuffer.size() * sizeof(uint32_t));
+              dataBuffer.clear();
+           }
+           
            tdc++;
            if(tdc>=nTDCs)
            {
@@ -443,7 +424,7 @@ int main(int argc,char *argv[])
                  monFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
                  monFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
                  monFile.close();
-                 std::rename("tempMonFile.raw", "data/Monitor/proANUBISmonitor.raw");
+                 std::rename("tempMonFile.raw", "data/monitor/proANUBISmonitor.raw");
                  monFile.open("tempMonFile.raw", std::ios::binary | std::ios::out);
                  monFile.write(reinterpret_cast< char* >(&thisTime.first),sizeof(uint32_t)); //(char*) &a, sizeof(a));
                  monFile.write(reinterpret_cast< char* >(&thisTime.second),sizeof(uint32_t));
