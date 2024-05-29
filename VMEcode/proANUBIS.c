@@ -311,7 +311,6 @@ int main(int argc,char *argv[])
 		        write_opcode(win_offs);
 		        write_opcode(0x7000);//sets Data_Ready_Mode=Event Ready
                 write_opcode(0x2300);//Enable all channels
-                //write_reg(cont_reg_1, 0x2B); //Need to enable BERR_VME for block transfers
             }
             else //Set up TDC 6 in continuous readout.
             {
@@ -333,16 +332,11 @@ int main(int argc,char *argv[])
     
     std::pair<uint32_t,uint32_t> thisTime;
     uint32_t thisWord;
+    uint32_t fillWord;
     uint32_t buffer[MAX_BLT_SIZE] = {0};
     std::vector<uint32_t> dataBuffer;
 
     while(true){
-        tdc=0;
-        for(;tdc<nTDCs;tdc++)
-        {
-    	    write_reg(tdc_clear, 0x0011);
-        }
-        tdc=0;
         //Save the chrono start time
         thisTime = getTime();
       
@@ -379,18 +373,42 @@ int main(int argc,char *argv[])
         ulong EOBMask = 0x200000;
         ulong headerMask = 0x400000;
 
+        tdc=0;
+        for(;tdc<nTDCs;tdc++)
+        {
+    	    write_reg(tdc_clear, 0x0011);
+        }
+        tdc=0;
+
     	do{
            int wordCount = read_blk(buffer);
            thisTime = getTime();
-
+           bool lastWasBad = false;
            for(int b=0; b<wordCount; b++)
            {
               thisWord = buffer[b];
               if(thisWord&headerMask){
-                 if(thisWord&EOBMask){break;}
+                 if(thisWord&EOBMask)
+                 {
+                    if(lastWasBad){break;}
+                    else
+                    {
+                        lastWasBad=true;
+                        fillWord = thisWord;
+                    }
+                 }
+                 else{dataBuffer.push_back(thisWord);}
               }
               //HexToBin(thisWord);
-              dataBuffer.push_back(thisWord);
+              else
+              { 
+                if(lastWasBad)
+                {
+                    lastWasBad=false;
+                    dataBuffer.push_back(fillWord);
+                }
+                dataBuffer.push_back(thisWord);
+              }
            }
            if(dataBuffer.size()>0)
            {
