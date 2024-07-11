@@ -1,7 +1,5 @@
 # Standalone script to run proANUBIS data-taking. 
 This code is built to continously read data from the proANUBIS TDCs, periodically writing the output data to ROOT files. In addition to the main output, a secondary monitoring file is created every 30 minutes (configurable) which can be used to check the state of the setup. The code is designed to run as a linux background process, and reads /cfg/runFlag.txt periodically to determine whether to continue running. By writing a zero (or anything **other** than a 1) to this file the script knows to stop.
-
-Due to the event formatting for root, the script only tolerates TDC data which exactly follows the format of header -> data words -> end of block word. Any variations from this pattern will put the reading state machine into "INVALID", the current TTree will be written, and the data-taking stopped.
 ## First Time Operation
 I didn't write in automatic directory creation for the monitoring or config flags yet, so this needs to be done for new installs:
 
